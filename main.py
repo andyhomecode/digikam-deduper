@@ -46,7 +46,7 @@ def find_duplicates(conn, similarity_threshold, top=None):
     """
     if top:
         query += f" LIMIT {top}"
-    cursor.execute(query, (similarity_threshold,))
+    cursor.execute(query, (similarity_threshold / 100 ,))
     results = cursor.fetchall()
     print("Raw query results:", results)  # Debugging output
 
@@ -75,7 +75,7 @@ def main():
     parser = argparse.ArgumentParser(description="Find duplicates in a Digikam database.")
     parser.add_argument("--db-folder-path", required=True, help="Path to the folder containing Digikam databases.")
     parser.add_argument("--output-script", default="move_duplicates.sh", help="Path to the output bash script.")
-    parser.add_argument("--similarity-threshold", type=float, default=0.90, help="Similarity threshold for duplicates.")
+    parser.add_argument("--similarity-threshold", type=int, default=90, help="Similarity threshold for duplicates.")
     parser.add_argument("--top", type=int, default=None, help="Limit to the top N matches.")
     args = parser.parse_args()
 
