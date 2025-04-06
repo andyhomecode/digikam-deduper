@@ -6,6 +6,7 @@ def connect_to_database(db_folder_path):
     digikam_db_path = f"{db_folder_path}/digikam4.db"
     similarity_db_path = f"{db_folder_path}/similarity.db"
     conn = sqlite3.connect(digikam_db_path)
+    conn.row_factory = sqlite3.Row  # Enable access to rows as dictionaries
     conn.execute(f"ATTACH DATABASE '{similarity_db_path}' AS similarity_db")
     return conn
 
