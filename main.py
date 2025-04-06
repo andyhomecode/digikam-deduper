@@ -20,7 +20,7 @@ def find_duplicates(conn, similarity_threshold, top=None):
         b.id AS file2_id,
         b.name AS file2_name,
         b.album AS file2_album,
-        similarity.similarity
+        similarity_db.Similarity.similarity
     FROM
         Images AS a
     JOIN
@@ -28,13 +28,13 @@ def find_duplicates(conn, similarity_threshold, top=None):
     ON
         a.id < b.id
     JOIN
-        Similarity AS similarity
+        similarity_db.Similarity
     ON
-        similarity.imageid1 = a.id AND similarity.imageid2 = b.id
+        similarity_db.Similarity.imageid1 = a.id AND similarity_db.Similarity.imageid2 = b.id
     WHERE
-        similarity.similarity >= ?
+        similarity_db.Similarity.similarity >= ?
     ORDER BY
-        similarity.similarity DESC
+        similarity_db.Similarity.similarity DESC
     """
     if top:
         query += f" LIMIT {top}"
