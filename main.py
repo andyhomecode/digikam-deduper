@@ -1,5 +1,6 @@
 import sqlite3
 import argparse
+from collections import defaultdict
 
 def connect_to_database(db_folder_path):
     """Connect to the Digikam database and attach the similarity database."""
@@ -18,9 +19,15 @@ def find_duplicates(conn, similarity_threshold, top=None):
         a.id AS file1_id,
         a.name AS file1_name,
         albums_a.relativePath AS file1_album,
+        info_a.creationDate AS file1_creation_date,
+        a.modificationDate AS file1_modification_date,
+        a.fileSize AS file1_size,
         b.id AS file2_id,
         b.name AS file2_name,
         albums_b.relativePath AS file2_album,
+        info_b.creationDate AS file2_creation_date,
+        b.modificationDate AS file2_modification_date,
+        b.fileSize AS file2_size,
         similarity_db.ImageSimilarity.value AS similarity
     FROM
         Images AS a
@@ -29,6 +36,10 @@ def find_duplicates(conn, similarity_threshold, top=None):
     ON
         a.album = albums_a.id
     JOIN
+        ImageInformation AS info_a
+    ON
+        a.id = info_a.imageid
+    JOIN
         Images AS b
     ON
         a.id < b.id
@@ -36,6 +47,10 @@ def find_duplicates(conn, similarity_threshold, top=None):
         Albums AS albums_b
     ON
         b.album = albums_b.id
+    JOIN
+        ImageInformation AS info_b
+    ON
+        b.id = info_b.imageid
     JOIN
         similarity_db.ImageSimilarity
     ON
@@ -58,16 +73,79 @@ def find_duplicates(conn, similarity_threshold, top=None):
     duplicates = []
     for row in results:
         duplicates.append({
-            "file1": f"{row['file1_album']}/{row['file1_name']}",
-            "file2": f"{row['file2_album']}/{row['file2_name']}",
-            "similarity": row['similarity']
+            "file1": {
+                "path": f"{row['file1_album']}/{row['file1_name']}",
+                "creation_date": row["file1_creation_date"],
+                "modification_date": row["file1_modification_date"],
+                "size": row["file1_size"]
+            },
+            "file2": {
+                "path": f"{row['file2_album']}/{row['file2_name']}",
+                "creation_date": row["file2_creation_date"],
+                "modification_date": row["file2_modification_date"],
+                "size": row["file2_size"]
+            },
+            "similarity": row["similarity"]
         })
     return duplicates
 
+def group_duplicates(duplicates):
+    """Group duplicates into clusters using a graph-based approach."""
+    graph = defaultdict(set)
+
+    # Build the graph
+    for duplicate in duplicates:
+        file1 = duplicate["file1"]["path"]
+        file2 = duplicate["file2"]["path"]
+        graph[file1].add(file2)
+        graph[file2].add(file1)
+
+    # Find connected components (clusters)
+    visited = set()
+    clusters = []
+
+    def dfs(node, cluster):
+        visited.add(node)
+        cluster.append(node)
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                dfs(neighbor, cluster)
+
+    for node in graph:
+        if node not in visited:
+            cluster = []
+            dfs(node, cluster)
+            clusters.append(cluster)
+
+    return clusters
+
 def decide_files_to_keep(duplicates):
-    """Apply rules to decide which files to keep."""
-    # Placeholder for decision logic
-    return []
+    """Apply rules to decide which files to keep in each cluster."""
+    clusters = group_duplicates(duplicates)
+    files_to_move = []
+
+    for cluster in clusters:
+        # Extract metadata for each file in the cluster
+        cluster_files = []
+        for duplicate in duplicates:
+            if duplicate["file1"]["path"] in cluster:
+                cluster_files.append(duplicate["file1"])
+            if duplicate["file2"]["path"] in cluster:
+                cluster_files.append(duplicate["file2"])
+
+        # Remove duplicates from the cluster
+        cluster_files = {file["path"]: file for file in cluster_files}.values()
+
+        # Apply rules to decide which file to keep
+        # Example rule: Keep the file with the earliest creation date
+        file_to_keep = min(cluster_files, key=lambda f: f["creation_date"] or "9999-99-99")
+
+        # Mark all other files in the cluster for deletion
+        for file in cluster_files:
+            if file["path"] != file_to_keep["path"]:
+                files_to_move.append((file["path"], "duplicates/"))
+
+    return files_to_move
 
 def generate_bash_script(files_to_move, output_script_path):
     """Generate a bash script to move files."""
