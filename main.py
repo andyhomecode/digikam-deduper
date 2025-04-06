@@ -1,9 +1,12 @@
 import sqlite3
 import argparse
 
-def connect_to_database(db_path):
-    """Connect to the Digikam database."""
-    conn = sqlite3.connect(db_path)
+def connect_to_database(db_folder_path):
+    """Connect to the Digikam database and attach the similarity database."""
+    digikam_db_path = f"{db_folder_path}/digikam4.db"
+    similarity_db_path = f"{db_folder_path}/similarity.db"
+    conn = sqlite3.connect(digikam_db_path)
+    conn.execute(f"ATTACH DATABASE '{similarity_db_path}' AS similarity_db")
     return conn
 
 def find_duplicates(conn, similarity_threshold, top=None):
@@ -61,20 +64,20 @@ def generate_bash_script(files_to_move, output_script_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Find duplicates in a Digikam database.")
-    parser.add_argument("--db-path", required=True, help="Path to the Digikam database.")
+    parser.add_argument("--db-folder-path", required=True, help="Path to the folder containing Digikam databases.")
     parser.add_argument("--output-script", default="move_duplicates.sh", help="Path to the output bash script.")
     parser.add_argument("--similarity-threshold", type=int, default=90, help="Similarity threshold for duplicates.")
     parser.add_argument("--top", type=int, default=None, help="Limit to the top N matches.")
     args = parser.parse_args()
 
-    conn = connect_to_database(args.db_path)
-    duplicates = find_duplicates(conn, args.similarity_threshold, args.top)
+    with connect_to_database(args.db_folder_path) as conn:
+        duplicates = find_duplicates(conn, args.similarity_threshold, args.top)
 
-    print(f"Processing top {len(duplicates)} duplicates.")
+        print(f"Processing top {len(duplicates)} duplicates.")
 
-    files_to_move = decide_files_to_keep(duplicates)
-    generate_bash_script(files_to_move, args.output_script)
-    print(f"Bash script generated at {args.output_script}")
+        files_to_move = decide_files_to_keep(duplicates)
+        generate_bash_script(files_to_move, args.output_script)
+        print(f"Bash script generated at {args.output_script}")
 
 if __name__ == "__main__":
     main()
