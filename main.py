@@ -49,14 +49,18 @@ def find_duplicates(conn, similarity_threshold, top=None):
         query += f" LIMIT {top}"
     cursor.execute(query, (similarity_threshold / 100,))
     results = cursor.fetchall()
-    print("Raw query results:", results)  # Debugging output
+
+    # Debugging output: Convert rows to dictionaries for readability
+    print("Raw query results:")
+    for row in results:
+        print(dict(row))  # Convert sqlite3.Row to a dictionary for readable output
 
     duplicates = []
     for row in results:
         duplicates.append({
-            "file1": f"{row[2]}/{row[1]}",  # file1_album/file1_name
-            "file2": f"{row[5]}/{row[4]}",  # file2_album/file2_name
-            "similarity": row[6]            # similarity
+            "file1": f"{row['file1_album']}/{row['file1_name']}",
+            "file2": f"{row['file2_album']}/{row['file2_name']}",
+            "similarity": row['similarity']
         })
     return duplicates
 
